@@ -4,8 +4,6 @@
 **SRN:** PES1UG24CS608  
 **Repository:** PES1UG24CS608-pes-vcs  
 **Platform:** Ubuntu 22.04
-
----
 ## Phase 1 — Object Storage Foundation
 
 ### Screenshot 1A — All Phase 1 tests passing  
@@ -18,50 +16,8 @@ All three tests pass:
 
 ---
 
-<<<<<<< HEAD
 ### Screenshot 1B — Sharded object directory  
 ![1B](screenshots/2.png)
-=======
-## Phase 1 — Object Storage Foundation
-
-**Concepts:** Content-addressable storage, directory sharding, atomic writes, SHA-256 hashing for integrity.
-
-**Files implemented:** `object.c` — functions `object_write` and `object_read`.
-
-### What was implemented
-
-`object_write` stores any data (blob, tree, commit) in the object store by:
-1. Prepending a header in the format `"<type> <size>\0"` to the raw data
-2. Computing the SHA-256 hash of the full object (header + data)
-3. Skipping the write if the object already exists (deduplication)
-4. Creating the shard directory `.pes/objects/XX/` (first 2 hex chars)
-5. Writing atomically via a temp file + `rename()` to prevent partial writes
-6. `fsync()`-ing both the file and the directory to persist the rename
-
-`object_read` retrieves and verifies objects by:
-1. Building the file path from the hash using `object_path()`
-2. Reading the entire file into memory
-3. Recomputing the SHA-256 and comparing to the filename — returns `-1` if corrupt
-4. Parsing the header to extract the type string and data size
-5. Returning a heap-allocated copy of the data portion (after the `\0`)
-
-### Screenshot 1A — All Phase 1 tests passing
-Screenshot 1A — All Phase 1 tests passing  
-![1A](screenshots/1.png)
-
-![Phase 1 test_objects output](1.png)
-
-All three tests pass:
-- **PASS: blob storage** — write and read back a blob correctly
-- **PASS: deduplication** — same content produces same hash, stored only once
-- **PASS: integrity check** — corrupt objects are detected and rejected
-
-### Screenshot 1B — Sharded object directory structure
-
-![find .pes/objects -type f](2.png)
-
-Objects are sharded under `.pes/objects/XX/` where `XX` is the first two hex characters of the SHA-256 hash. This prevents any single directory from growing too large.
->>>>>>> e769ec7 (fix: rename screenshots folder)
 
 ---
 
@@ -109,8 +65,6 @@ Objects are sharded under `.pes/objects/XX/` where `XX` is the first two hex cha
 ## Final — Integration Test
 
 ![Final](screenshots/10.png)
-
----
 
 
 ## Phase 5 — Branching and Checkout (Analysis)
