@@ -121,6 +121,16 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
         free(full);
         return 0;
     }
+
+    // 4. Create shard directory (.pes/objects/XX/) if it doesn't exist
+    char path[512];
+    object_path(&id, path, sizeof(path));
+
+    char dir[512];
+    snprintf(dir, sizeof(dir), "%s", path);
+    char *slash = strrchr(dir, '/');
+    if (slash) *slash = '\0';
+    mkdir(dir, 0755);  // OK if already exists
 }
 
 // Read an object from the store.
