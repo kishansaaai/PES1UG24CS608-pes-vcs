@@ -133,10 +133,19 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     mkdir(dir, 0755);  // OK if already exists
 
     // 5. Write to a temporary file in the same shard directory
-    char tmp_path[520];
-    snprintf(tmp_path, sizeof(tmp_path), "%s/tmp_XXXXXX", dir);
+    char tmp_path[530];  // Increased from 520 to prevent truncation (512 + 11 + 1 + margin)
+    int n = snprintf(tmp_path, sizeof(tmp_path), "%s/tmp_XXXXXX", dir);
+    if (n < 0 || (size_t)n >= sizeof(tmp_path)) {
+        fprintf(stderr, "error: object path too long\n");
+        free(full);
+        return -1;
+    }
     int fd = mkstemp(tmp_path);
-    if (fd < 0) { free(full); return -1; }
+    if (fd < 0) {
+        perror("mkstemp");
+        free(full);
+        return -1;
+    }
 
     ssize_t written = write(fd, full, full_len);
     free(full);
