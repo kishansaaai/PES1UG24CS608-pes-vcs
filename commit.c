@@ -249,8 +249,14 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
         return -1;
     }
 
-    /* ── 5. Update the branch pointer ────────────────────────────────── */
-    head_update(commit_id_out);
+    /* ── 5. Advance the branch pointer to the new commit ─────────────── */
+    if (head_update(&commit_id) != 0) {
+        fprintf(stderr, "error: head_update failed\n");
+        return -1;
+    }
+
+    if (commit_id_out)
+        *commit_id_out = commit_id;
 
     return 0;
 }
