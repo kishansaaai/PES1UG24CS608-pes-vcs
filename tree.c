@@ -169,9 +169,21 @@ static int write_tree_level(IndexEntry *entries, int count, const char *prefix, 
         // Use strchr to find the first '/' — tells us if this is a file or a subdir
         char *slash = strchr(rel, '/');
 
-        (void)slash;
-        i++;
+        if (!slash) {
+            // ── File entry ────────────────────────────────────────────────
+            // rel is just a filename with no further slash; add it directly.
+            TreeEntry *te = &tree.entries[tree.count];
+            te->mode = entries[i].mode;
+            strncpy(te->name, rel, sizeof(te->name) - 1);
+            te->name[sizeof(te->name) - 1] = '\0';
+            te->hash = entries[i].hash;
+            tree.count++;
+            i++;
+        } else {
+            // subdirectory handling — coming next
+            i++;
+        }
     }
 
-    return -1; // not yet complete
+    return -1; // serialize/write not yet done
 }
