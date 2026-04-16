@@ -180,8 +180,39 @@ static int write_tree_level(IndexEntry *entries, int count, const char *prefix, 
             tree.count++;
             i++;
         } else {
-            // subdirectory handling — coming next
-            i++;
+            // ── Subdirectory entry ────────────────────────────────────────
+            // Extract the directory component (everything up to and including the slash)
+            // e.g. rel = "util/foo.c"  →  dirname = "util"
+            size_t dir_len = slash - rel;
+            char dirname[256];
+            memcpy(dirname, rel, dir_len);
+            dirname[dir_len] = '\0';
+
+            // Build the full prefix for this subdirectory
+            // e.g. prefix = "src/"  →  sub_prefix = "src/util/"
+            char sub_prefix[512];
+            snprintf(sub_prefix, sizeof(sub_prefix), "%s%s/", prefix, dirname);
+
+            // Use strncmp to collect all entries that belong to this subdirectory
+            int j = i;
+            while (j < count && strncmp(entries[j].path, sub_prefix, strlen(sub_prefix)) == 0) {
+                j++;
+            }
+
+            // Recursively build and write the subtree for entries[i..j-1]
+            ObjectID sub_id;
+            if (write_tree_level(entries + i, j - i, sub_prefix, &sub_id) != 0)
+                return -1;
+
+            // Add a tree entry pointing to the subtree we just wrote
+            TreeEntry *te = &tree.entries[tree.count];
+            te->mode = MODE_DIR;
+            strncpy(te->name, dirname, sizeof(te->name) - 1);
+            te->name[sizeof(te->name) - 1] = '\0';
+            te->hash = sub_id;
+            tree.count++;
+
+            i = j; // Skip past all entries consumed by the subtree
         }
     }
 
