@@ -99,6 +99,17 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     else if (type == OBJ_TREE)   type_str = "tree";
     else if (type == OBJ_COMMIT) type_str = "commit";
     else return -1;
+
+    // 1. Build the full object: "blob 16\0<data>"
+    char header[64];
+    int header_len = snprintf(header, sizeof(header), "%s %zu", type_str, len) + 1;
+    // +1 to include the '\0' terminator in header_len
+
+    size_t full_len = header_len + len;
+    uint8_t *full = malloc(full_len);
+    if (!full) return -1;
+    memcpy(full, header, header_len);
+    memcpy(full + header_len, data, len);
 }
 
 // Read an object from the store.
