@@ -195,14 +195,8 @@ int head_update(const ObjectID *new_commit) {
 // Returns 0 on success, -1 on error.
 int commit_create(const char *message, ObjectID *commit_id_out) {
     /* ── 1. Build the tree from the current index ─────────────────── */
-    Index index;
-    if (index_load(&index) != 0) {
-        fprintf(stderr, "error: failed to load index\n");
-        return -1;
-    }
-
     ObjectID tree_id;
-    if (tree_from_index(&index, &tree_id) != 0) {
+    if (tree_from_index(&tree_id) != 0) {
         fprintf(stderr, "error: tree_from_index failed\n");
         return -1;
     }
