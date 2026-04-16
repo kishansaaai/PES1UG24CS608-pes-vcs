@@ -202,4 +202,15 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
     ObjectID computed;
     compute_hash(buf, file_size, &computed);
     if (memcmp(computed.hash, id->hash, HASH_SIZE) != 0) { free(buf); return -1; }
+
+    // 3. Parse the header to extract the type string and size
+    uint8_t *null_byte = memchr(buf, '\0', file_size);
+    if (!null_byte) { free(buf); return -1; }
+
+    char *header = (char *)buf;
+    ObjectType type;
+    if      (strncmp(header, "blob ",   5) == 0) type = OBJ_BLOB;
+    else if (strncmp(header, "tree ",   5) == 0) type = OBJ_TREE;
+    else if (strncmp(header, "commit ", 7) == 0) type = OBJ_COMMIT;
+    else { free(buf); return -1; }
 }
