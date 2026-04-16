@@ -223,7 +223,17 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     snprintf(commit.author,  sizeof(commit.author),  "%s", pes_author());
     snprintf(commit.message, sizeof(commit.message), "%s", message);
 
-    /* ── 3. Serialize the commit ───────────────────────────────────── */
+    /* ── 3. Set parent if HEAD already points to a commit ────────────── */
+    ObjectID parent_id;
+    if (head_read(&parent_id) == 0) {
+        commit.parent     = parent_id;
+        commit.has_parent = 1;
+    } else {
+        /* First commit — no parent */
+        commit.has_parent = 0;
+    }
+
+    /* ── 4. Serialize the commit ───────────────────────────────────── */
     char *data = NULL;
     size_t data_len = 0;
     int ret = commit_serialize(&commit, &data, &data_len);
@@ -232,14 +242,14 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
         return -1;
     }
 
-    /* ── 4. Write the commit to disk ────────────────────────────────── */
+    /* ── 5. Write the commit to disk ────────────────────────────────── */
     int ret_write = object_write(OBJ_COMMIT, data, data_len, commit_id_out);
     if (ret_write != 0) {
         fprintf(stderr, "error: object_write failed\n");
         return -1;
     }
 
-    /* ── 5. Update the branch pointer ────────────────────────────────── */
+    /* ── 6. Update the branch pointer ────────────────────────────────── */
     head_update(commit_id_out);
 
     free(data);
