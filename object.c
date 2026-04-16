@@ -197,4 +197,9 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
     if (!buf) { fclose(f); return -1; }
     if ((long)fread(buf, 1, file_size, f) != file_size) { fclose(f); free(buf); return -1; }
     fclose(f);
+
+    // 4. Verify integrity: recompute SHA-256 and compare to expected hash
+    ObjectID computed;
+    compute_hash(buf, file_size, &computed);
+    if (memcmp(computed.hash, id->hash, HASH_SIZE) != 0) { free(buf); return -1; }
 }
