@@ -203,3 +203,10 @@ int index_add(Index *index, const char *path) {
     (void)index; (void)path;
     return -1;
 }
+
+/* Comparator used by qsort to sort IndexEntry by path lexicographically */
+static int entry_cmp(const void *a, const void *b) {
+    const IndexEntry *ea = (const IndexEntry *)a;
+    const IndexEntry *eb = (const IndexEntry *)b;
+    return strcmp(ea->path, eb->path);
+}
