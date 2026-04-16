@@ -194,8 +194,61 @@ int head_update(const ObjectID *new_commit) {
 //
 // Returns 0 on success, -1 on error.
 int commit_create(const char *message, ObjectID *commit_id_out) {
-    // TODO: Implement commit creation
-    // (See Lab Appendix for logical steps)
-    (void)message; (void)commit_id_out;
-    return -1;
+    /* ── 1. Build the tree from the current index ─────────────────── */
+    Index index;
+    if (index_load(&index) != 0) {
+        fprintf(stderr, "error: failed to load index\n");
+        return -1;
+    }
+
+    ObjectID tree_id;
+    if (tree_from_index(&tree_id) != 0) {
+        fprintf(stderr, "error: tree_from_index failed\n");
+        return -1;
+    }
+
+    Commit c;
+    c.tree = tree_id;
+    c.has_parent = 0;
+    c.author[0] = '\0';
+    c.timestamp = 0;
+    c.message[0] = '\0';
+
+    /* ── 2. Fill in the author and timestamp ─────────────────────── */
+    char *author = pes_author();
+    if (!author) {
+        fprintf(stderr, "error: no author name available\n");
+        return -1;
+    }
+    c.author = author;
+    c.timestamp = time(NULL);
+
+    /* ── 3. Fill in the message ───────────────────────────────────── */
+    c.message = strdup(message);
+    if (!c.message) {
+        fprintf(stderr, "error: strdup failed\n");
+        return -1;
+    }
+
+    /* ── 4. Serialize the commit ───────────────────────────────────── */
+    char *data = NULL;
+    size_t data_len = 0;
+    int ret = commit_serialize(&c, &data, &data_len);
+    if (ret != 0) {
+        fprintf(stderr, "error: commit_serialize failed\n");
+        return -1;
+    }
+
+    /* ── 5. Write the commit to disk ────────────────────────────────── */
+    int ret_write = object_write(OBJ_COMMIT, data, data_len, commit_id_out);
+    if (ret_write != 0) {
+        fprintf(stderr, "error: object_write failed\n");
+        return -1;
+    }
+
+    /* ── 6. Update the branch pointer ────────────────────────────────── */
+    head_update(commit_id_out);
+
+    free(data);
+    return 0;
 }
