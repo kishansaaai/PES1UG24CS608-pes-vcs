@@ -44,6 +44,8 @@
 ### Screenshot 1A — All Phase 1 tests passing
 
 ![Phase 1 test_objects output](1.png)
+Screenshot 1A — All Phase 1 tests passing  
+![1A](screenshots/1.png)
 
 All three tests pass:
 - **PASS: blob storage** — write and read back a blob correctly
