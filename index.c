@@ -191,26 +191,31 @@ static int entry_cmp(const void *a, const void *b) {
 int index_save(const Index *index) {
     char tmp_path[] = ".pes/index.tmp";
 
-    Index sorted = *index;
-    qsort(sorted.entries, sorted.count, sizeof(IndexEntry), entry_cmp);
+    // Heap-allocate the sorted copy instead of putting it on the stack
+    Index *sorted = malloc(sizeof(Index));
+    if (!sorted) return -1;
+    *sorted = *index;
+    qsort(sorted->entries, sorted->count, sizeof(IndexEntry), entry_cmp);
 
     FILE *f = fopen(tmp_path, "w");
     if (!f) {
         perror("index_save: fopen");
+        free(sorted);
         return -1;
     }
 
     char hex[65];
-    for (int i = 0; i < sorted.count; i++) {
-        IndexEntry *e = &sorted.entries[i];
+    for (int i = 0; i < sorted->count; i++) {
+        IndexEntry *e = &sorted->entries[i];
         hash_to_hex(&e->hash, hex);
         fprintf(f, "%o %s %llu %llu %s\n",
-                e->mode,
-                hex,
+                e->mode, hex,
                 (unsigned long long)e->mtime_sec,
                 (unsigned long long)e->size,
                 e->path);
     }
+
+    free(sorted);
 
     if (fflush(f) != 0) { perror("index_save: fflush"); fclose(f); return -1; }
     if (fsync(fileno(f)) != 0) { perror("index_save: fsync"); fclose(f); return -1; }
