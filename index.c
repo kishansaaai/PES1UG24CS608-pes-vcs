@@ -136,8 +136,6 @@ int index_status(const Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_load(Index *index) {
-    // TODO: Implement index loading
-    // (See Lab Appendix for logical steps)
     index->count = 0;
 
     FILE *f = fopen(".pes/index", "r");
@@ -166,7 +164,7 @@ int index_load(Index *index) {
         e->size      = (uint64_t)size;
         strncpy(e->path, path, sizeof(e->path) - 1);
         e->path[sizeof(e->path) - 1] = '\0';
-        hex_to_hash(hex, e->oid.bytes);
+        hex_to_hash(hex, &e->hash);
     }
 
     fclose(f);
@@ -191,11 +189,8 @@ static int entry_cmp(const void *a, const void *b) {
 //
 // Returns 0 on success, -1 on error.
 int index_save(const Index *index) {
-    // TODO: Implement atomic index saving
-    // (See Lab Appendix for logical steps)
     char tmp_path[] = ".pes/index.tmp";
 
-    /* Work on a mutable sorted copy so we don't mutate the caller's struct */
     Index sorted = *index;
     qsort(sorted.entries, sorted.count, sizeof(IndexEntry), entry_cmp);
 
@@ -208,7 +203,7 @@ int index_save(const Index *index) {
     char hex[65];
     for (int i = 0; i < sorted.count; i++) {
         IndexEntry *e = &sorted.entries[i];
-        hash_to_hex(e->oid.bytes, hex);
+        hash_to_hex(&e->hash, hex);
         fprintf(f, "%o %s %llu %llu %s\n",
                 e->mode,
                 hex,
@@ -217,7 +212,6 @@ int index_save(const Index *index) {
                 e->path);
     }
 
-    /* Flush userspace buffers, sync to disk, then atomically rename */
     if (fflush(f) != 0) { perror("index_save: fflush"); fclose(f); return -1; }
     if (fsync(fileno(f)) != 0) { perror("index_save: fsync"); fclose(f); return -1; }
     fclose(f);
@@ -239,10 +233,6 @@ int index_save(const Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_add(Index *index, const char *path) {
-    // TODO: Implement file staging
-    // (See Lab Appendix for logical steps)
-
-    /* ── 1. Read file contents ─────────────────────────────────────── */
     FILE *f = fopen(path, "rb");
     if (!f) {
         fprintf(stderr, "error: cannot open '%s': %s\n", path, strerror(errno));
@@ -273,7 +263,6 @@ int index_add(Index *index, const char *path) {
     }
     fclose(f);
 
-    /* ── 2. Write blob to object store ────────────────────────────── */
     ObjectID oid;
     if (object_write(OBJ_BLOB, buf, (size_t)file_len, &oid) != 0) {
         fprintf(stderr, "error: object_write failed for '%s'\n", path);
@@ -282,17 +271,15 @@ int index_add(Index *index, const char *path) {
     }
     free(buf);
 
-    /* ── 3. Stat the file for metadata ────────────────────────────── */
     struct stat st;
     if (lstat(path, &st) != 0) {
         perror("index_add: lstat");
         return -1;
     }
 
-    /* ── 4. Update or insert the index entry ──────────────────────── */
     IndexEntry *existing = index_find(index, path);
     if (existing) {
-        existing->oid       = oid;
+        existing->hash       = oid;
         existing->mode      = (st.st_mode & 0111) ? 0100755 : 0100644;
         existing->mtime_sec = (uint64_t)st.st_mtime;
         existing->size      = (uint64_t)st.st_size;
@@ -302,7 +289,7 @@ int index_add(Index *index, const char *path) {
             return -1;
         }
         IndexEntry *e = &index->entries[index->count++];
-        e->oid       = oid;
+        e->hash      = oid;
         e->mode      = (st.st_mode & 0111) ? 0100755 : 0100644;
         e->mtime_sec = (uint64_t)st.st_mtime;
         e->size      = (uint64_t)st.st_size;
@@ -310,6 +297,5 @@ int index_add(Index *index, const char *path) {
         e->path[sizeof(e->path) - 1] = '\0';
     }
 
-    /* ── 5. Persist the updated index ─────────────────────────────── */
     return index_save(index);
 }
