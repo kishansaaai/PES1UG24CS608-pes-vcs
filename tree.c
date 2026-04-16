@@ -151,3 +151,27 @@ int tree_from_index(ObjectID *id_out) {
     (void)id_out;
     return -1;
 }
+
+// Recursive helper: builds and writes a tree object for entries[0..count-1]
+// whose paths all share the same directory prefix up to `depth` slashes.
+// `prefix` is the directory path we're currently building (e.g. "src/util/").
+// On success, writes the tree object and stores its hash in *id_out.
+// Returns 0 on success, -1 on error.
+static int write_tree_level(IndexEntry *entries, int count, const char *prefix, ObjectID *id_out) {
+    Tree tree;
+    tree.count = 0;
+
+    int i = 0;
+    while (i < count) {
+        // Strip the prefix from this entry's path to get the relative name
+        const char *rel = entries[i].path + strlen(prefix);
+
+        // Use strchr to find the first '/' — tells us if this is a file or a subdir
+        char *slash = strchr(rel, '/');
+
+        (void)slash;
+        i++;
+    }
+
+    return -1; // not yet complete
+}
