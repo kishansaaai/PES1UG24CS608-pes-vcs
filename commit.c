@@ -194,6 +194,9 @@ int head_update(const ObjectID *new_commit) {
 //
 // Returns 0 on success, -1 on error.
 int commit_create(const char *message, ObjectID *commit_id_out) {
+    // TODO: Implement commit creation
+    // (See Lab Appendix for logical steps)
+
     /* ── 1. Build the tree from the current index ─────────────────── */
     Index index;
     if (index_load(&index) != 0) {
@@ -202,17 +205,10 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     }
 
     ObjectID tree_id;
-    if (tree_from_index(&tree_id) != 0) {
+    if (tree_from_index(&index, &tree_id) != 0) {
         fprintf(stderr, "error: tree_from_index failed\n");
         return -1;
     }
-
-    Commit c;
-    c.tree = tree_id;
-    c.has_parent = 0;
-    c.author[0] = '\0';
-    c.timestamp = 0;
-    c.message[0] = '\0';
 
     /* ── 2. Populate the Commit struct ───────────────────────────────── */
     Commit commit;
