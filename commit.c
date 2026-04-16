@@ -233,25 +233,24 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
         commit.has_parent = 0;
     }
 
-    /* ── 4. Serialize the commit ───────────────────────────────────── */
-    char *data = NULL;
-    size_t data_len = 0;
-    int ret = commit_serialize(&commit, &data, &data_len);
-    if (ret != 0) {
+    /* ── 4. Serialize the commit and write it to the object store ────── */
+    void  *raw     = NULL;
+    size_t raw_len = 0;
+    if (commit_serialize(&commit, &raw, &raw_len) != 0) {
         fprintf(stderr, "error: commit_serialize failed\n");
         return -1;
     }
 
-    /* ── 5. Write the commit to disk ────────────────────────────────── */
-    int ret_write = object_write(OBJ_COMMIT, data, data_len, commit_id_out);
-    if (ret_write != 0) {
-        fprintf(stderr, "error: object_write failed\n");
+    ObjectID commit_id;
+    int rc = object_write(OBJ_COMMIT, raw, raw_len, &commit_id);
+    free(raw);
+    if (rc != 0) {
+        fprintf(stderr, "error: object_write failed for commit\n");
         return -1;
     }
 
-    /* ── 6. Update the branch pointer ────────────────────────────────── */
+    /* ── 5. Update the branch pointer ────────────────────────────────── */
     head_update(commit_id_out);
 
-    free(data);
     return 0;
 }
