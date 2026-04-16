@@ -18,8 +18,7 @@ pes: $(OBJS)
 test_objects: test_objects.o object.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-test_tree: test_tree.o object.o tree.o
-	$(CC) -o $@ $^ $(LDFLAGS)
+test_tree: test_tree.o object.o tree.o index.o -lcrypto
 
 # ─── Convenience targets ────────────────────────────────────────────────────
 
