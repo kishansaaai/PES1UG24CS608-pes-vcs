@@ -136,6 +136,8 @@ int index_status(const Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_load(Index *index) {
+    // TODO: Implement index loading
+    // (See Lab Appendix for logical steps)
     index->count = 0;
 
     FILE *f = fopen(".pes/index", "r");
@@ -171,6 +173,13 @@ int index_load(Index *index) {
     return 0;
 }
 
+/* Comparator used by qsort to sort IndexEntry by path lexicographically */
+static int entry_cmp(const void *a, const void *b) {
+    const IndexEntry *ea = (const IndexEntry *)a;
+    const IndexEntry *eb = (const IndexEntry *)b;
+    return strcmp(ea->path, eb->path);
+}
+
 // Save the index to .pes/index atomically.
 //
 // HINTS - Useful functions and syscalls:
@@ -182,6 +191,8 @@ int index_load(Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_save(const Index *index) {
+    // TODO: Implement atomic index saving
+    // (See Lab Appendix for logical steps)
     char tmp_path[] = ".pes/index.tmp";
 
     /* Work on a mutable sorted copy so we don't mutate the caller's struct */
@@ -228,6 +239,9 @@ int index_save(const Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_add(Index *index, const char *path) {
+    // TODO: Implement file staging
+    // (See Lab Appendix for logical steps)
+
     /* ── 1. Read file contents ─────────────────────────────────────── */
     FILE *f = fopen(path, "rb");
     if (!f) {
