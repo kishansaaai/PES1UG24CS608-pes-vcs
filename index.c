@@ -228,15 +228,74 @@ int index_save(const Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_add(Index *index, const char *path) {
-    // TODO: Implement file staging
-    // (See Lab Appendix for logical steps)
-    (void)index; (void)path;
-    return -1;
-}
+    /* ── 1. Read file contents ─────────────────────────────────────── */
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        fprintf(stderr, "error: cannot open '%s': %s\n", path, strerror(errno));
+        return -1;
+    }
 
-/* Comparator used by qsort to sort IndexEntry by path lexicographically */
-static int entry_cmp(const void *a, const void *b) {
-    const IndexEntry *ea = (const IndexEntry *)a;
-    const IndexEntry *eb = (const IndexEntry *)b;
-    return strcmp(ea->path, eb->path);
+    fseek(f, 0, SEEK_END);
+    long file_len = ftell(f);
+    rewind(f);
+
+    if (file_len < 0) {
+        fclose(f);
+        return -1;
+    }
+
+    uint8_t *buf = malloc((size_t)file_len);
+    if (!buf && file_len > 0) {
+        fclose(f);
+        perror("index_add: malloc");
+        return -1;
+    }
+
+    if (file_len > 0 && fread(buf, 1, (size_t)file_len, f) != (size_t)file_len) {
+        fprintf(stderr, "error: short read on '%s'\n", path);
+        free(buf);
+        fclose(f);
+        return -1;
+    }
+    fclose(f);
+
+    /* ── 2. Write blob to object store ────────────────────────────── */
+    ObjectID oid;
+    if (object_write(OBJ_BLOB, buf, (size_t)file_len, &oid) != 0) {
+        fprintf(stderr, "error: object_write failed for '%s'\n", path);
+        free(buf);
+        return -1;
+    }
+    free(buf);
+
+    /* ── 3. Stat the file for metadata ────────────────────────────── */
+    struct stat st;
+    if (lstat(path, &st) != 0) {
+        perror("index_add: lstat");
+        return -1;
+    }
+
+    /* ── 4. Update or insert the index entry ──────────────────────── */
+    IndexEntry *existing = index_find(index, path);
+    if (existing) {
+        existing->oid       = oid;
+        existing->mode      = (st.st_mode & 0111) ? 0100755 : 0100644;
+        existing->mtime_sec = (uint64_t)st.st_mtime;
+        existing->size      = (uint64_t)st.st_size;
+    } else {
+        if (index->count >= MAX_INDEX_ENTRIES) {
+            fprintf(stderr, "error: index is full\n");
+            return -1;
+        }
+        IndexEntry *e = &index->entries[index->count++];
+        e->oid       = oid;
+        e->mode      = (st.st_mode & 0111) ? 0100755 : 0100644;
+        e->mtime_sec = (uint64_t)st.st_mtime;
+        e->size      = (uint64_t)st.st_size;
+        strncpy(e->path, path, sizeof(e->path) - 1);
+        e->path[sizeof(e->path) - 1] = '\0';
+    }
+
+    /* ── 5. Persist the updated index ─────────────────────────────── */
+    return index_save(index);
 }
