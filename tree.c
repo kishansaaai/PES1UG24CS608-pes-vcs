@@ -148,8 +148,9 @@ int tree_from_index(ObjectID *id_out) {
         return ret;
     }
 
-    (void)id_out;
-    return -1;
+    // Entries in the index are already sorted by path (index_save sorts them),
+    // so we can pass them directly to the recursive helper with an empty prefix.
+    return write_tree_level(idx.entries, idx.count, "", id_out);
 }
 
 // Recursive helper: builds and writes a tree object for entries[0..count-1]
@@ -216,5 +217,14 @@ static int write_tree_level(IndexEntry *entries, int count, const char *prefix, 
         }
     }
 
-    return -1; // serialize/write not yet done
+    // Use tree_serialize to convert the populated Tree struct into a binary buffer
+    void *data;
+    size_t len;
+    if (tree_serialize(&tree, &data, &len) != 0)
+        return -1;
+
+    // Use object_write to save that binary buffer to the store as OBJ_TREE
+    int ret = object_write(OBJ_TREE, data, len, id_out);
+    free(data);
+    return ret;
 }
