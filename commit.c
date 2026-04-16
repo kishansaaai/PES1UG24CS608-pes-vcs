@@ -214,39 +214,32 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     c.timestamp = 0;
     c.message[0] = '\0';
 
-    /* ── 2. Fill in the author and timestamp ─────────────────────── */
-    char *author = pes_author();
-    if (!author) {
-        fprintf(stderr, "error: no author name available\n");
-        return -1;
-    }
-    c.author = author;
-    c.timestamp = time(NULL);
+    /* ── 2. Populate the Commit struct ───────────────────────────────── */
+    Commit commit;
+    memset(&commit, 0, sizeof(commit));
 
-    /* ── 3. Fill in the message ───────────────────────────────────── */
-    c.message = strdup(message);
-    if (!c.message) {
-        fprintf(stderr, "error: strdup failed\n");
-        return -1;
-    }
+    commit.tree      = tree_id;
+    commit.timestamp = (uint64_t)time(NULL);
+    snprintf(commit.author,  sizeof(commit.author),  "%s", pes_author());
+    snprintf(commit.message, sizeof(commit.message), "%s", message);
 
-    /* ── 4. Serialize the commit ───────────────────────────────────── */
+    /* ── 3. Serialize the commit ───────────────────────────────────── */
     char *data = NULL;
     size_t data_len = 0;
-    int ret = commit_serialize(&c, &data, &data_len);
+    int ret = commit_serialize(&commit, &data, &data_len);
     if (ret != 0) {
         fprintf(stderr, "error: commit_serialize failed\n");
         return -1;
     }
 
-    /* ── 5. Write the commit to disk ────────────────────────────────── */
+    /* ── 4. Write the commit to disk ────────────────────────────────── */
     int ret_write = object_write(OBJ_COMMIT, data, data_len, commit_id_out);
     if (ret_write != 0) {
         fprintf(stderr, "error: object_write failed\n");
         return -1;
     }
 
-    /* ── 6. Update the branch pointer ────────────────────────────────── */
+    /* ── 5. Update the branch pointer ────────────────────────────────── */
     head_update(commit_id_out);
 
     free(data);
