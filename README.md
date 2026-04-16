@@ -241,28 +241,3 @@ Consider this interleaving between a `commit` process and a `gc` process running
 
 4. **Pack files:** Git's pack format batches many objects into a single file with an index. GC rewrites packs atomically; partial packs are never visible to readers until fully written.
 
----
-
-## Submission Checklist
-
-| Phase | ID | Screenshot | Status |
-|-------|----|-----------|--------|
-| 1 | 1A | `./test_objects` — all tests passing | ✅ |
-| 1 | 1B | `find .pes/objects -type f` — sharded structure | ✅ |
-| 2 | 2A | `./test_tree` — all tests passing | ✅ |
-| 2 | 2B | `xxd` of raw tree object | ✅ |
-| 3 | 3A | `pes init → pes add → pes status` sequence | ✅ |
-| 3 | 3B | `cat .pes/index` — text format index | ✅ |
-| 4 | 4A | `pes log` with three commits | ✅ |
-| 4 | 4B | `find .pes -type f | sort` — object growth | ✅ |
-| 4 | 4C | `cat .pes/refs/heads/main` and `cat .pes/HEAD` | ✅ |
-| Final | — | `make test-integration` — all tests completed | ✅ |
-
-## Code Files Implemented
-
-| File | Functions Implemented |
-|------|-----------------------|
-| `object.c` | `object_write`, `object_read` |
-| `tree.c` | `tree_from_index` |
-| `index.c` | `index_load`, `index_save`, `index_add` |
-| `commit.c` | `commit_create` |
