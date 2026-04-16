@@ -131,6 +131,16 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     char *slash = strrchr(dir, '/');
     if (slash) *slash = '\0';
     mkdir(dir, 0755);  // OK if already exists
+
+    // 5. Write to a temporary file in the same shard directory
+    char tmp_path[520];
+    snprintf(tmp_path, sizeof(tmp_path), "%s/tmp_XXXXXX", dir);
+    int fd = mkstemp(tmp_path);
+    if (fd < 0) { free(full); return -1; }
+
+    ssize_t written = write(fd, full, full_len);
+    free(full);
+    if (written != (ssize_t)full_len) { close(fd); unlink(tmp_path); return -1; }
 }
 
 // Read an object from the store.
