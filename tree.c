@@ -88,8 +88,9 @@ static int compare_tree_entries(const void *a, const void *b) {
 // Returns 0 on success, -1 on error.
 int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
     // Estimate max size: (6 bytes mode + 1 byte space + 256 bytes name + 1 byte null + 32 bytes hash) per entry
-    size_t max_size = tree->count * 296; 
-    uint8_t *buffer = malloc(max_size);
+    size_t max_size = tree->count * 296;
+    // avoid malloc(0) undefined behavior for empty trees
+    uint8_t *buffer = malloc(max_size > 0 ? max_size : 1);
     if (!buffer) return -1;
 
     // Create a mutable copy to sort entries (Git requirement)
@@ -129,29 +130,6 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 //   - object_write    : save that binary buffer to the store as OBJ_TREE
 //
 // Returns 0 on success, -1 on error.
-int tree_from_index(ObjectID *id_out) {
-    // Use index_load to load the staged files into memory
-    Index idx;
-    if (index_load(&idx) != 0)
-        return -1;
-
-    if (idx.count == 0) {
-        // Nothing staged — still write an empty tree object
-        Tree empty;
-        empty.count = 0;
-        void *data;
-        size_t len;
-        if (tree_serialize(&empty, &data, &len) != 0)
-            return -1;
-        int ret = object_write(OBJ_TREE, data, len, id_out);
-        free(data);
-        return ret;
-    }
-
-    // Entries in the index are already sorted by path (index_save sorts them),
-    // so we can pass them directly to the recursive helper with an empty prefix.
-    return write_tree_level(idx.entries, idx.count, "", id_out);
-}
 
 // Recursive helper: builds and writes a tree object for entries[0..count-1]
 // whose paths all share the same directory prefix up to `depth` slashes.
@@ -227,4 +205,31 @@ static int write_tree_level(IndexEntry *entries, int count, const char *prefix, 
     int ret = object_write(OBJ_TREE, data, len, id_out);
     free(data);
     return ret;
+}
+
+int tree_from_index(ObjectID *id_out) {
+    // TODO: Implement recursive tree building
+    // (See Lab Appendix for logical steps)
+
+    // Use index_load to load the staged files into memory
+    Index idx;
+    if (index_load(&idx) != 0)
+        return -1;
+
+    if (idx.count == 0) {
+        // Nothing staged — still write an empty tree object
+        Tree empty;
+        empty.count = 0;
+        void *data;
+        size_t len;
+        if (tree_serialize(&empty, &data, &len) != 0)
+            return -1;
+        int ret = object_write(OBJ_TREE, data, len, id_out);
+        free(data);
+        return ret;
+    }
+
+    // Entries in the index are already sorted by path (index_save sorts them),
+    // so we can pass them directly to the recursive helper with an empty prefix.
+    return write_tree_level(idx.entries, idx.count, "", id_out);
 }
