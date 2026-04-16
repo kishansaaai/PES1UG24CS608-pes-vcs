@@ -213,4 +213,19 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
     else if (strncmp(header, "tree ",   5) == 0) type = OBJ_TREE;
     else if (strncmp(header, "commit ", 7) == 0) type = OBJ_COMMIT;
     else { free(buf); return -1; }
+
+    size_t data_offset = (null_byte - buf) + 1;
+    size_t data_len    = file_size - data_offset;
+
+    // 6. Allocate a buffer, copy the data portion (after the \0)
+    uint8_t *out = malloc(data_len);
+    if (!out) { free(buf); return -1; }
+    memcpy(out, buf + data_offset, data_len);
+    free(buf);
+
+    // 5. Set *type_out to the parsed ObjectType
+    if (type_out) *type_out = type;
+    if (data_out) *data_out = out;
+    if (len_out)  *len_out  = data_len;
+    return 0;
 }
