@@ -182,10 +182,40 @@ int index_load(Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_save(const Index *index) {
-    // TODO: Implement atomic index saving
-    // (See Lab Appendix for logical steps)
-    (void)index;
-    return -1;
+    char tmp_path[] = ".pes/index.tmp";
+
+    /* Work on a mutable sorted copy so we don't mutate the caller's struct */
+    Index sorted = *index;
+    qsort(sorted.entries, sorted.count, sizeof(IndexEntry), entry_cmp);
+
+    FILE *f = fopen(tmp_path, "w");
+    if (!f) {
+        perror("index_save: fopen");
+        return -1;
+    }
+
+    char hex[65];
+    for (int i = 0; i < sorted.count; i++) {
+        IndexEntry *e = &sorted.entries[i];
+        hash_to_hex(e->oid.bytes, hex);
+        fprintf(f, "%o %s %llu %llu %s\n",
+                e->mode,
+                hex,
+                (unsigned long long)e->mtime_sec,
+                (unsigned long long)e->size,
+                e->path);
+    }
+
+    /* Flush userspace buffers, sync to disk, then atomically rename */
+    if (fflush(f) != 0) { perror("index_save: fflush"); fclose(f); return -1; }
+    if (fsync(fileno(f)) != 0) { perror("index_save: fsync"); fclose(f); return -1; }
+    fclose(f);
+
+    if (rename(tmp_path, ".pes/index") != 0) {
+        perror("index_save: rename");
+        return -1;
+    }
+    return 0;
 }
 
 // Stage a file for the next commit.
