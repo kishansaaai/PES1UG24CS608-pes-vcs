@@ -23,6 +23,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <errno.h>
 
 // ─── PROVIDED ────────────────────────────────────────────────────────────────
 
@@ -135,10 +136,39 @@ int index_status(const Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_load(Index *index) {
-    // TODO: Implement index loading
-    // (See Lab Appendix for logical steps)
-    (void)index;
-    return -1;
+    index->count = 0;
+
+    FILE *f = fopen(".pes/index", "r");
+    if (!f) {
+        /* File not existing is not an error — empty index */
+        return 0;
+    }
+
+    char hex[65];
+    unsigned int mode;
+    unsigned long long mtime;
+    unsigned long long size;
+    char path[1024];
+
+    while (fscanf(f, "%o %64s %llu %llu %1023s",
+                  &mode, hex, &mtime, &size, path) == 5) {
+        if (index->count >= MAX_INDEX_ENTRIES) {
+            fprintf(stderr, "error: index is full (max %d entries)\n",
+                    MAX_INDEX_ENTRIES);
+            fclose(f);
+            return -1;
+        }
+        IndexEntry *e = &index->entries[index->count++];
+        e->mode      = mode;
+        e->mtime_sec = (uint64_t)mtime;
+        e->size      = (uint64_t)size;
+        strncpy(e->path, path, sizeof(e->path) - 1);
+        e->path[sizeof(e->path) - 1] = '\0';
+        hex_to_hash(hex, e->oid.bytes);
+    }
+
+    fclose(f);
+    return 0;
 }
 
 // Save the index to .pes/index atomically.
