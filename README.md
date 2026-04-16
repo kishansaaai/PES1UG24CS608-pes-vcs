@@ -29,7 +29,7 @@ All three tests pass:
 ---
 
 ### Screenshot 2B — Raw tree object  
-![2B](screenshots/4.png)
+![2B](screenshots/Screenshot 2026-04-16 185405.png)
 
 ---
 
