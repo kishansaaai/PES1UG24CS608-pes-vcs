@@ -6,188 +6,70 @@
 **Platform:** Ubuntu 22.04
 
 ---
-
-## Table of Contents
-
-1. [Phase 1 — Object Storage Foundation](#phase-1--object-storage-foundation)
-2. [Phase 2 — Tree Objects](#phase-2--tree-objects)
-3. [Phase 3 — The Index (Staging Area)](#phase-3--the-index-staging-area)
-4. [Phase 4 — Commits and History](#phase-4--commits-and-history)
-5. [Phase 5 — Branching and Checkout (Analysis)](#phase-5--branching-and-checkout-analysis)
-6. [Phase 6 — Garbage Collection (Analysis)](#phase-6--garbage-collection-analysis)
-
----
-
 ## Phase 1 — Object Storage Foundation
 
-**Concepts:** Content-addressable storage, directory sharding, atomic writes, SHA-256 hashing for integrity.
-
-**Files implemented:** `object.c` — functions `object_write` and `object_read`.
-
-### What was implemented
-
-`object_write` stores any data (blob, tree, commit) in the object store by:
-1. Prepending a header in the format `"<type> <size>\0"` to the raw data
-2. Computing the SHA-256 hash of the full object (header + data)
-3. Skipping the write if the object already exists (deduplication)
-4. Creating the shard directory `.pes/objects/XX/` (first 2 hex chars)
-5. Writing atomically via a temp file + `rename()` to prevent partial writes
-6. `fsync()`-ing both the file and the directory to persist the rename
-
-`object_read` retrieves and verifies objects by:
-1. Building the file path from the hash using `object_path()`
-2. Reading the entire file into memory
-3. Recomputing the SHA-256 and comparing to the filename — returns `-1` if corrupt
-4. Parsing the header to extract the type string and data size
-5. Returning a heap-allocated copy of the data portion (after the `\0`)
-
-### Screenshot 1A — All Phase 1 tests passing
-
-![Phase 1 test_objects output](1.png)
-Screenshot 1A — All Phase 1 tests passing  
+### Screenshot 1A — All Phase 1 tests passing  
 ![1A](screenshots/1.png)
 
 All three tests pass:
-- **PASS: blob storage** — write and read back a blob correctly
-- **PASS: deduplication** — same content produces same hash, stored only once
-- **PASS: integrity check** — corrupt objects are detected and rejected
+- PASS: blob storage
+- PASS: deduplication
+- PASS: integrity check
 
-### Screenshot 1B — Sharded object directory structure
+---
 
-![find .pes/objects -type f](2.png)
-
-Objects are sharded under `.pes/objects/XX/` where `XX` is the first two hex characters of the SHA-256 hash. This prevents any single directory from growing too large.
+### Screenshot 1B — Sharded object directory  
+![1B](screenshots/2.png)
 
 ---
 
 ## Phase 2 — Tree Objects
 
-**Concepts:** Directory representation as recursive structures, file modes and permissions.
-
-**Files implemented:** `tree.c` — function `tree_from_index`.
-
-### What was implemented
-
-`tree_from_index` builds a complete tree hierarchy from the staging index:
-- Groups index entries by their top-level directory component
-- For flat files, creates a `TreeEntry` with mode `100644` (or `100755` for executables) pointing to the blob
-- For subdirectories, recurses to build subtrees and stores them as `040000` tree entries
-- Serializes each tree level into binary format and writes it to the object store via `object_write`
-- Returns the root tree's `ObjectID` to the caller
-
-Tree entries are sorted lexicographically before serialization to ensure deterministic output — same directory contents always produce the same hash.
-
-### Screenshot 2A — All Phase 2 tests passing
-
-![Phase 2 test_tree output](3.png)
-
-Both tests pass:
-- **PASS: tree serialize/parse roundtrip** — entries, modes, and hashes are preserved through serialization and parsing
-- **PASS: tree deterministic serialization** — same entries in any order always produce identical binary output
-
-### Screenshot 2B — Raw tree object in xxd
-
-![xxd of raw tree object](4.png)
-
-> Note: The xxd output showed "No such file or directory" because the `.pes/` directory had been cleaned between test runs. The tree object is written during `test_tree` execution but the objects directory is removed by `make clean`. The test itself passed correctly as shown in 2A.
+### Screenshot 2A — All Phase 2 tests passing  
+![2A](screenshots/3.png)
 
 ---
 
-## Phase 3 — The Index (Staging Area)
+### Screenshot 2B — Raw tree object  
+![2B](screenshots/4.png)
 
-**Concepts:** File format design, atomic writes, change detection using metadata.
+---
 
-**Files implemented:** `index.c` — functions `index_load`, `index_save`, `index_add`.
+## Phase 3 — Index (Staging Area)
 
-### What was implemented
+### Screenshot 3A — pes init → add → status  
+![3A](screenshots/5.png)
 
-**`index_load`** reads `.pes/index` line by line using `fscanf`. Each line has the format:
-```
-<mode-octal> <64-char-hex> <mtime> <size> <path>
-```
-If the file does not exist, the function initializes an empty index (not an error — expected on first run).
+---
 
-**`index_save`** writes the index atomically:
-- Heap-allocates a sorted copy of the index (to avoid stack overflow with large `Index` structs)
-- Sorts entries by path using `qsort` for deterministic output
-- Writes to `.pes/index.tmp`, calls `fflush` + `fsync` to ensure data reaches disk
-- Atomically renames the temp file over `.pes/index`
-
-**`index_add`** stages a file:
-- Opens and reads the file contents
-- Calls `object_write(OBJ_BLOB, ...)` to store the blob and get its hash
-- Calls `lstat()` to get file metadata (mode, mtime, size)
-- Updates an existing index entry if found via `index_find`, or appends a new one
-- Saves the updated index atomically
-
-**Key bug fixed:** The original `index_save` declared `Index sorted = *index` on the stack. With `MAX_INDEX_ENTRIES = 1024` and each `IndexEntry` holding a 512-byte path plus other fields, this allocated ~1 MB on the stack and caused a stack overflow segfault. Fixed by heap-allocating with `malloc(sizeof(Index))`.
-
-### Screenshot 3A — pes init → pes add → pes status
-
-![pes status showing staged files](5.png)
-
-Both `file1.txt` and `file2.txt` are correctly staged. Unstaged changes show nothing (files match index). Untracked files lists all source files not in the index.
-
-### Screenshot 3B — cat .pes/index
-
-![cat .pes/index](6.png)
-
-The index file is human-readable text. Each entry shows:
-- Mode (`100644` — regular non-executable file)
-- 64-character SHA-256 hex hash of the blob
-- mtime timestamp
-- file size in bytes
-- file path
+### Screenshot 3B — index file  
+![3B](screenshots/6.png)
 
 ---
 
 ## Phase 4 — Commits and History
 
-**Concepts:** Linked structures on disk, reference files, atomic pointer updates.
-
-**Files implemented:** `commit.c` — function `commit_create`.
-
-### What was implemented
-
-`commit_create` performs the full commit workflow:
-
-1. **Build the tree** — calls `tree_from_index(&tree_id)` to snapshot the current staging area into a tree object and get the root hash
-2. **Populate the Commit struct** — sets `tree`, `author` (from `pes_author()`), `timestamp` (from `time(NULL)`), and `message`
-3. **Set the parent** — calls `head_read(&parent_id)`. If it succeeds, sets `has_parent = 1` and records the parent hash. For the first commit, `head_read` fails (no HEAD yet) and `has_parent = 0`
-4. **Serialize and write** — calls `commit_serialize` to produce the text-format commit, then `object_write(OBJ_COMMIT, ...)` to store it
-5. **Update HEAD** — calls `head_update(&commit_id)` to atomically move the branch pointer to the new commit
-
-### Screenshot 4A — pes log showing three commits
-
-![pes log with three commits](7.png)
-
-Three commits are shown in reverse chronological order:
-- `Add farewell` — third commit, adds `bye.txt`
-- `Add world` — second commit, appends to `hello.txt`
-- `Initial commit` — first commit, no parent
-
-Each entry shows the full 64-char commit hash, author, Unix timestamp, and message.
-
-### Screenshot 4B — Object store growth after three commits
-
-![find .pes -type f | sort](8.png)
-
-After three commits the object store contains blobs (file contents), tree objects (directory snapshots), and commit objects, all sharded under `.pes/objects/XX/`. The index file and HEAD/refs files are also visible.
-
-### Screenshot 4C — Reference chain
-
-![cat .pes/refs/heads/main and cat .pes/HEAD](9.png)
-
-- `.pes/refs/heads/main` contains the SHA-256 hash of the latest commit
-- `.pes/HEAD` contains `ref: refs/heads/main`, making HEAD an indirect reference that follows the branch pointer automatically
-
-### Final — Full integration test
-
-![make test-integration](10.png)
-
-All integration tests passed. The test sequence ran init → add → commit → add → commit → add → commit → log → reference chain verification → object store inspection and printed `=== All integration tests completed ===`.
+### Screenshot 4A — commit log  
+![4A](screenshots/7.png)
 
 ---
+
+### Screenshot 4B — object store  
+![4B](screenshots/8.png)
+
+---
+
+### Screenshot 4C — HEAD and refs  
+![4C](screenshots/9.png)
+
+---
+
+## Final — Integration Test
+
+![Final](screenshots/10.png)
+
+---
+
 
 ## Phase 5 — Branching and Checkout (Analysis)
 
