@@ -1,6 +1,6 @@
 # PES-VCS: Building a Version Control System from Scratch
 
-**Student:** PES User  
+**Student:** SAI KISHAN A
 **SRN:** PES1UG24CS608  
 **Repository:** PES1UG24CS608-pes-vcs  
 **Platform:** Ubuntu 22.04
