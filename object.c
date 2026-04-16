@@ -141,6 +141,21 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     ssize_t written = write(fd, full, full_len);
     free(full);
     if (written != (ssize_t)full_len) { close(fd); unlink(tmp_path); return -1; }
+
+    // 6. fsync() the temporary file to ensure data reaches disk
+    if (fsync(fd) != 0) { close(fd); unlink(tmp_path); return -1; }
+    close(fd);
+
+    // 7. rename() the temp file to the final path (atomic on POSIX)
+    if (rename(tmp_path, path) != 0) { unlink(tmp_path); return -1; }
+
+    // 8. Open and fsync() the shard directory to persist the rename
+    int dir_fd = open(dir, O_RDONLY);
+    if (dir_fd >= 0) { fsync(dir_fd); close(dir_fd); }
+
+    // 9. Store the computed hash in *id_out
+    if (id_out) *id_out = id;
+    return 0;
 }
 
 // Read an object from the store.
